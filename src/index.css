@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Natural Tones Global Styling */
+:root {
+  --color-natural-bg: #F9F7F2;
+  --color-natural-surface: #FDFBF7;
+  --color-natural-border: #E8E4D9;
+  --color-natural-border-strong: #E2DDD2;
+  --color-natural-text: #434338;
+  --color-natural-heading: #2D3436;
+  --color-natural-muted: #7A7969;
+  --color-natural-sage: #6B8E61;
+  --color-natural-forest: #4A6741;
+  --color-natural-chip: #F3F4ED;
+  --color-natural-amber: #D97706;
+}
+
+.dark {
+  --color-natural-bg: #121417;
+  --color-natural-surface: #1B1E23;
+  --color-natural-border: #2A2F37;
+  --color-natural-border-strong: #373E49;
+  --color-natural-text: #CBD5E1;
+  --color-natural-heading: #F1F5F9;
+  --color-natural-muted: #94A3B8;
+  --color-natural-sage: #528E4A;
+  --color-natural-forest: #3B6B34;
+  --color-natural-chip: #242930;
+  --color-natural-amber: #F59E0B;
+}
+
+/* Safe area inset variables for resilient smartphone viewport layouts */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: 'Zen Kaku Gothic New', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: #F9F7F2;
+  color: #434338;
+}
+
+.dark body, body.dark {
+  background-color: #121417;
+  color: #CBD5E1;
+}
+
+/* Dark mode tiles filter fallback */
+.dark-map-tiles {
+  filter: brightness(0.85) contrast(1.15) invert(0.92) hue-rotate(180deg) saturate(0.8);
+}
+
+/* Natural Tones Subtle Map Dot Grid */
+.map-dot-pattern {
+  background-image: radial-gradient(#E8E4D9 2px, transparent 2px);
+  background-size: 32px 32px;
+}
+
+/* Glassmorphism tuned to Natural Tones */
+.glass-natural {
+  background: rgba(253, 251, 247, 0.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(226, 221, 210, 0.9);
+}
+
+.glass-natural-card {
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid #E8E4D9;
+}
+
+/* Leaflet Custom DivIcon Resets */
+.leaflet-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+.user-location-marker,
+.bus-stop-icon,
+.active-bus-marker {
+  background: transparent !important;
+  border: none !important;
+  width: auto !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* Hide scrollbar for horizontal chip bars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom smooth scrollbar for timetable */
+.natural-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.natural-scrollbar::-webkit-scrollbar-track {
+  background: #F3F4ED;
+  border-radius: 9999px;
+}
+.natural-scrollbar::-webkit-scrollbar-thumb {
+  background: #D5DBD0;
+  border-radius: 9999px;
+}
+.natural-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6B8E61;
+}
