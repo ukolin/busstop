@@ -1,0 +1,10 @@
+{
+  "name": "広島バスロケーションv2",
+  "description": "広島市周辺の最寄りバス停の発車時刻一覧を確認できるバスロケWebアプリ。",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
