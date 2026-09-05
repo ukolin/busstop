@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { Plus, Minus, Navigation, Eye, EyeOff, Layers, FileJson, Copy, Check, X, Move, RotateCcw } from 'lucide-react';
+import { Plus, Minus, Navigation, Eye, EyeOff, Layers } from 'lucide-react';
 import { UserLocation, BusStop, ActiveBus } from '../types';
 import { formatPlatformText, getCompanyColor, getShortPlatformBadge } from '../data/timetableService';
 import { extractPlatformNumber } from '../data/hiroshimaData';
@@ -73,10 +73,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   onRecenterUser,
   showAllStops = true,
   onToggleShowAllStops,
-  onMapClickCoords,
-  onOpenDataModal,
-  onUpdateStopPosition,
-  onResetStopsToDefault,
   isDarkMode = false,
 }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -87,12 +83,8 @@ export const MapComponent: React.FC<MapComponentProps> = ({
   const stopsLayerRef = useRef<L.LayerGroup | null>(null);
   const prevLocationRef = useRef<{ lat: number; lng: number } | null>(null);
 
-  const [clickedCoords, setClickedCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [copiedCoords, setCopiedCoords] = useState(false);
   const [currentZoom, setCurrentZoom] = useState<number>(16);
   const [mapViewportKey, setMapViewportKey] = useState<number>(0);
-  const [isEditMode, setIsEditMode] = useState<boolean>(false);
-  const [lastMovedNotice, setLastMovedNotice] = useState<string | null>(null);
 
   // 1. Initialize Map once
   useEffect(() => {
@@ -127,16 +119,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({
     mapInstanceRef.current = map;
     prevLocationRef.current = { lat: userLocation.lat, lng: userLocation.lng };
 
-    // Listen to map clicks to capture exact coordinates for user editing
-    map.on('click', (e: L.LeafletMouseEvent) => {
-      const coords = {
-        lat: Number(e.latlng.lat.toFixed(6)),
-        lng: Number(e.latlng.lng.toFixed(6)),
-      };
-      setClickedCoords(coords);
-      if (onMapClickCoords) {
-        onMapClickCoords(coords);
-      }
+    // Map click handling (Coordinates display temporarily disabled)
+    map.on('click', (_e: L.LeafletMouseEvent) => {
+      // Temporarily disabled: tapping location coordinates output
     });
 
     map.on('zoomend', () => {
@@ -387,11 +372,11 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       return { lat: stops[0].lat, lng: stops[0].lng };
     };
 
-    // 集約モード時 (!isHubUnclustered && !isEditMode)、各ターミナルに属するバス停を収集
+    // 集約モード時 (!isHubUnclustered)、各ターミナルに属するバス停を収集
     const hubStopsMap = new Map<string, BusStop[]>();
     const stopsBelongingToHub = new Set<string>();
 
-    if (!isHubUnclustered && !isEditMode) {
+    if (!isHubUnclustered) {
       TERMINAL_HUBS.forEach((hub) => {
         hubStopsMap.set(hub.key, []);
       });
@@ -472,7 +457,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
     busStops.forEach((stop) => {
       // ズーム19未満のときは集約されたバス停の個別ピンはスキップ
-      if (!isHubUnclustered && !isEditMode && stopsBelongingToHub.has(stop.id)) {
+      if (!isHubUnclustered && stopsBelongingToHub.has(stop.id)) {
         return;
       }
 
@@ -511,9 +496,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         stop.name.includes('バスセンター') ||
         stop.name.includes('大学病院');
 
-      const platformBadgeBg = isEditMode
-        ? '#d97706'
-        : isMultiCompany
+      const platformBadgeBg = isMultiCompany
         ? '#334155'
         : stopColor;
 
@@ -541,9 +524,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
       if (showFullPill) {
         // Full interactive pill pin with precise platform number
         let iconContent = '';
-        if (isEditMode) {
-          iconContent = `<svg viewBox="0 0 24 24" class="w-2.5 h-2.5 fill-none stroke-current stroke-2"><path d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20"/></svg>`;
-        } else if (platformNum) {
+        if (platformNum) {
           // Precise platform number badge inside pin circle
           iconContent = `<span class="font-black text-[9.5px] leading-none text-white">${platformNum}</span>`;
         } else {
@@ -551,7 +532,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         }
 
         const stopIconHtml = `
-          <div class="relative group ${isEditMode ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} -translate-x-1/2 -translate-y-full flex flex-col items-center">
+          <div class="relative group cursor-pointer -translate-x-1/2 -translate-y-full flex flex-col items-center">
             ${
               isSelected
                 ? `<span class="absolute -inset-2 rounded-full animate-pulse pointer-events-none" style="background-color: ${stopColor}40"></span>`
@@ -559,15 +540,13 @@ export const MapComponent: React.FC<MapComponentProps> = ({
             }
             <div class="flex flex-col items-center">
               <div class="inline-flex items-center gap-1.5 px-2 py-1 rounded-xl shadow-md border transition-transform max-w-none whitespace-nowrap ${
-                isEditMode
-                  ? 'bg-amber-50 text-amber-950 border-amber-400 ring-2 ring-amber-400/60 scale-105'
-                  : isSelected
+                isSelected
                   ? 'bg-[#2D3436] text-[#F9F7F2] scale-110'
                   : isNearby
                   ? 'bg-[#FDFBF7] text-[#434338] border-[#D5DBD0] hover:scale-105'
                   : 'bg-[#FAF8F3] text-[#5B594B] border-[#E4DFD3] hover:scale-105 opacity-95'
               }" style="${isSelected ? `border-color: ${stopColor}; box-shadow: 0 0 0 2px ${stopColor}60;` : ''}">
-                <div class="w-4 h-4 rounded-full flex items-center justify-center shrink-0 shadow-2xs" style="background-color: ${isEditMode ? '#d97706' : stopColor}; color: #ffffff;">
+                <div class="w-4 h-4 rounded-full flex items-center justify-center shrink-0 shadow-2xs" style="background-color: ${stopColor}; color: #ffffff;">
                   ${iconContent}
                 </div>
                 <span class="text-[11px] font-bold tracking-tight whitespace-nowrap">
@@ -579,14 +558,9 @@ export const MapComponent: React.FC<MapComponentProps> = ({
                     ? `<span class="text-[9.5px] px-1.5 py-0.5 rounded font-bold leading-none shrink-0 text-white shadow-2xs" style="background-color: ${platformBadgeBg}">${platformBadge}</span>`
                     : ''
                 }
-                ${
-                  isEditMode
-                    ? `<span class="text-[9px] px-1 py-0.2 rounded bg-amber-200 text-amber-900 font-bold leading-none">ドラッグ可</span>`
-                    : ''
-                }
               </div>
-              <div class="w-0.5 h-2.5 shadow-xs" style="background-color: ${isEditMode ? '#d97706' : isSelected ? stopColor : isNearby ? stopColor : '#9CA3AF'}"></div>
-              <div class="w-2 h-1 rounded-full" style="background-color: ${isEditMode ? '#d9770660' : `${stopColor}60`}"></div>
+              <div class="w-0.5 h-2.5 shadow-xs" style="background-color: ${isSelected ? stopColor : isNearby ? stopColor : '#9CA3AF'}"></div>
+              <div class="w-2 h-1 rounded-full" style="background-color: ${stopColor}60"></div>
             </div>
           </div>
         `;
@@ -600,7 +574,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
         marker = L.marker([stop.lat, stop.lng], {
           icon: stopIcon,
-          draggable: isEditMode,
+          draggable: false,
           zIndexOffset: isSelected ? 800 : isNearby ? 500 : 300,
         });
       } else {
@@ -608,7 +582,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         // For numbered terminals/hubs (Hiroshima Sta, Bus Center, Univ Hospital, etc.) at zoom >= 14,
         // render a high-precision numbered circular badge showing the platform number!
         const showNumberedDot = isTerminalOrNumbered && platformNum && currentZoom >= 14;
-        const dotBg = isEditMode ? '#d97706' : isMultiCompany ? '#ca8a04' : stopColor;
+        const dotBg = isMultiCompany ? '#ca8a04' : stopColor;
 
         let dotIconHtml = '';
         let iconSize: [number, number] = [16, 16];
@@ -618,7 +592,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           iconSize = [22, 22];
           iconAnchor = [11, 11];
           dotIconHtml = `
-            <div class="relative group ${isEditMode ? 'cursor-grab' : 'cursor-pointer'} flex items-center justify-center">
+            <div class="relative group cursor-pointer flex items-center justify-center">
               <div class="w-5.5 h-5.5 rounded-full border-2 border-white shadow-md group-hover:scale-125 transition-transform flex items-center justify-center font-black text-[10px] text-white leading-none" style="background-color: ${dotBg}" title="${stop.name} ${platformNum}番のりば">
                 ${platformNum}
               </div>
@@ -626,7 +600,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
           `;
         } else {
           dotIconHtml = `
-            <div class="relative group ${isEditMode ? 'cursor-grab' : 'cursor-pointer'} flex items-center justify-center">
+            <div class="relative group cursor-pointer flex items-center justify-center">
               <div class="w-3.5 h-3.5 rounded-full border-[1.5px] border-white shadow-xs group-hover:scale-130 transition-transform flex items-center justify-center" style="background-color: ${dotBg}">
                 <div class="w-1 h-1 rounded-full bg-white"></div>
               </div>
@@ -643,7 +617,7 @@ export const MapComponent: React.FC<MapComponentProps> = ({
 
         marker = L.marker([stop.lat, stop.lng], {
           icon: dotIcon,
-          draggable: isEditMode,
+          draggable: false,
           zIndexOffset: isTerminalOrNumbered ? 350 : 250,
         });
 
@@ -657,26 +631,13 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         );
       }
 
-      if (isEditMode) {
-        marker.on('dragend', (e: any) => {
-          const latlng = e.target.getLatLng();
-          const newLat = Number(latlng.lat.toFixed(6));
-          const newLng = Number(latlng.lng.toFixed(6));
-          if (onUpdateStopPosition) {
-            onUpdateStopPosition(stop.id, newLat, newLng);
-          }
-          setLastMovedNotice(`「${stop.name}」を移動しました（${newLat}, ${newLng}）`);
-          setTimeout(() => setLastMovedNotice(null), 4000);
-        });
-      }
-
       marker.on('click', () => {
         onSelectStop(stop);
       });
 
       stopsLayer.addLayer(marker);
     });
-  }, [busStops, selectedStop, nearbyStopIds, showAllStops, onSelectStop, currentZoom, mapViewportKey, isEditMode, onUpdateStopPosition]);
+  }, [busStops, selectedStop, nearbyStopIds, showAllStops, onSelectStop, currentZoom, mapViewportKey]);
 
   // 4. Center map when a bus or stop is selected or re-centered
   const handleZoomIn = () => {
@@ -705,91 +666,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         className="w-full h-full z-0 select-none cursor-grab active:cursor-grabbing"
       />
 
-      {/* Bus Stop Edit Mode Active Banner */}
-      {isEditMode && (
-        <div
-          id="map-edit-mode-banner"
-          className="absolute top-24 left-2.5 sm:top-20 sm:left-4 z-[1000] max-w-md pointer-events-auto bg-amber-500 text-white px-3.5 py-2 rounded-xl shadow-lg flex items-center justify-between gap-3 text-xs animate-in fade-in slide-in-from-top-2 duration-150"
-        >
-          <div className="flex items-center gap-2">
-            <Move className="w-4 h-4 shrink-0 animate-bounce" />
-            <div className="font-medium leading-tight">
-              <span className="font-bold">バス停ドラッグ移動モード中</span>
-              <p className="text-[11px] text-amber-100 mt-0.5">
-                地図上のバス停マーカーをつかんでドラッグすると、位置を自由に微調整できます。
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsEditMode(false)}
-            className="px-2.5 py-1 text-[11px] font-bold bg-white text-amber-900 hover:bg-amber-100 rounded-lg shrink-0 transition-colors shadow-xs"
-          >
-            完了
-          </button>
-        </div>
-      )}
-
-      {/* Moved Stop Notice Notification */}
-      {lastMovedNotice && (
-        <div
-          id="map-moved-stop-notice"
-          className="absolute bottom-20 left-1/2 -translate-x-1/2 z-[1000] max-w-sm pointer-events-none bg-[#2D3436]/95 text-white px-4 py-2 rounded-xl shadow-xl flex items-center gap-2 text-xs backdrop-blur-md animate-in fade-in slide-in-from-bottom-2 duration-150"
-        >
-          <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span className="font-medium">{lastMovedNotice}</span>
-        </div>
-      )}
-
-      {/* Floating Clicked Coordinates Notification */}
-      {clickedCoords && (
-        <div
-          id="map-clicked-coords-pill"
-          className="absolute top-[calc(max(0.375rem,env(safe-area-inset-top))+6rem)] left-2.5 sm:top-20 sm:left-4 z-[1000] max-w-sm pointer-events-auto bg-[#FDFBF7]/95 dark:bg-[#1B1E23]/95 backdrop-blur-md px-3 py-1.5 rounded-xl shadow-lg border border-[#CAD4C6] dark:border-[#2A2F37] flex items-center justify-between gap-2.5 text-xs animate-in fade-in slide-in-from-top-2 duration-150"
-        >
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="w-2 h-2 rounded-full bg-[#4A6741] dark:bg-[#6B8E61] shrink-0 animate-pulse"></span>
-            <div className="truncate text-[11px]">
-              <span className="text-[#5B594B] dark:text-[#94A3B8] font-bold">クリック地点: </span>
-              <span className="font-mono font-bold text-[#2D3436] dark:text-[#F1F5F9]">
-                {clickedCoords.lat}, {clickedCoords.lng}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <button
-              type="button"
-              onClick={() => {
-                navigator.clipboard.writeText(`${clickedCoords.lat}, ${clickedCoords.lng}`);
-                setCopiedCoords(true);
-                setTimeout(() => setCopiedCoords(false), 2000);
-              }}
-              className="px-2 py-0.5 text-[10px] font-bold bg-[#F3F4ED] dark:bg-[#242930] hover:bg-[#E8EBE4] dark:hover:bg-[#2C323B] border border-[#CAD4C6] dark:border-[#2A2F37] rounded-md text-[#2D3436] dark:text-[#F1F5F9] flex items-center gap-1 transition-colors"
-            >
-              {copiedCoords ? <Check className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-2.5 h-2.5" />}
-              <span>{copiedCoords ? 'コピー済' : 'コピー'}</span>
-            </button>
-            {onOpenDataModal && (
-              <button
-                type="button"
-                onClick={onOpenDataModal}
-                className="px-2 py-0.5 text-[10px] font-bold bg-[#4A6741] dark:bg-[#3B6B34] hover:bg-[#3B5433] dark:hover:bg-[#2D5227] text-white rounded-md flex items-center gap-0.5 transition-colors shadow-xs"
-              >
-                <span>JSON設定</span>
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setClickedCoords(null)}
-              className="p-1 text-[#7A7969] dark:text-[#94A3B8] hover:text-[#2D3436] dark:hover:text-[#F1F5F9] transition-colors rounded-md"
-              title="閉じる"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Floating Map Controls on Right */}
       <div className="absolute top-[calc(max(0.375rem,env(safe-area-inset-top))+6.25rem)] right-2.5 sm:top-20 sm:right-3 z-[1000] flex flex-col gap-1.5">
         {/* Recenter on GPS / Current Location */}
@@ -802,23 +678,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         >
           <Navigation className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
-
-        {/* Toggle Bus Stop Drag Adjustment Mode */}
-        {onUpdateStopPosition && (
-          <button
-            id="map-toggle-edit-mode-btn"
-            type="button"
-            onClick={() => setIsEditMode(!isEditMode)}
-            title={isEditMode ? '位置調整を完了' : 'バス停の位置をドラッグして微調整'}
-            className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl shadow-md border flex items-center justify-center transition-colors cursor-pointer ${
-              isEditMode
-                ? 'bg-amber-500 text-white border-amber-600 ring-2 ring-amber-400/50 animate-pulse'
-                : 'bg-[#FDFBF7]/95 dark:bg-[#1B1E23]/95 text-[#434338] dark:text-[#CBD5E1] border-[#E8E4D9] dark:border-[#2A2F37] hover:bg-[#F3F4ED] dark:hover:bg-[#242930]'
-            }`}
-          >
-            <Move className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-        )}
 
         {/* Toggle 500m Radius Circle */}
         <button
@@ -834,32 +693,6 @@ export const MapComponent: React.FC<MapComponentProps> = ({
         >
           {showRadiusCircle ? <Eye className="w-4 h-4 sm:w-5 sm:h-5" /> : <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />}
         </button>
-
-        {/* JSON / Coordinates Data Editor Modal Button */}
-        {onOpenDataModal && (
-          <button
-            id="map-open-json-modal-btn"
-            type="button"
-            onClick={onOpenDataModal}
-            title="バス停・時刻表JSONデータを編集・位置調整"
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl shadow-md border bg-[#FDFBF7]/95 dark:bg-[#1B1E23]/95 text-[#4A6741] dark:text-[#6B8E61] border-[#E8E4D9] dark:border-[#2A2F37] hover:bg-[#F3F4ED] dark:hover:bg-[#242930] flex items-center justify-center transition-colors cursor-pointer"
-          >
-            <FileJson className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-        )}
-
-        {/* Reset to Default Stop Positions */}
-        {onResetStopsToDefault && (
-          <button
-            id="map-reset-stops-btn"
-            type="button"
-            onClick={onResetStopsToDefault}
-            title="バス停の位置を最新マスターデータにリセット"
-            className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl shadow-md border bg-[#FDFBF7]/95 dark:bg-[#1B1E23]/95 text-[#7A7969] dark:text-[#94A3B8] border-[#E8E4D9] dark:border-[#2A2F37] hover:text-[#4A6741] dark:hover:text-[#6B8E61] hover:bg-[#F3F4ED] dark:hover:bg-[#242930] flex items-center justify-center transition-colors cursor-pointer"
-          >
-            <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-        )}
 
         {/* Toggle All Bus Stops vs Nearby Only */}
         {onToggleShowAllStops && (

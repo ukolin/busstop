@@ -9,7 +9,6 @@ import {
   Compass,
   Users,
   Sparkles,
-  FileJson,
   ArrowLeftRight,
   ArrowUpRight,
   ArrowDownRight,
@@ -521,20 +520,6 @@ export const NextDeparturesCard: React.FC<NextDeparturesCardProps> = ({
                 <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A] animate-pulse" />
                 <span className="leading-none whitespace-nowrap">RT遅延連動</span>
               </div>
-
-
-              {onOpenDataModal && (
-                <button
-                  id="open-json-editor-card-btn"
-                  type="button"
-                  onClick={onOpenDataModal}
-                  title="バス停の位置・時刻表をJSON編集"
-                  aria-label="JSON編集"
-                  className="p-1 text-[#7A7969] dark:text-[#94A3B8] hover:text-[#4A6741] dark:hover:text-[#6B8E61] hover:bg-[#F3F4ED] dark:hover:bg-[#242930] rounded-lg transition-colors flex items-center justify-center cursor-pointer"
-                >
-                  <FileJson className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </button>
-              )}
 
               <button
                 id="focus-selected-stop-btn"

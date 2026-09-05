@@ -393,7 +393,6 @@ export default function App() {
         onRefreshGps={requestGeolocation}
         onOpenPresetModal={() => setIsPresetModalOpen(true)}
         onOpenStopSelector={() => setIsStopSelectorOpen(true)}
-        onOpenDataModal={() => setIsDataModalOpen(true)}
         isDarkMode={isDarkMode}
         onToggleDarkMode={handleToggleDarkMode}
       />
@@ -412,10 +411,6 @@ export default function App() {
         onToggleRadiusCircle={() => setShowRadiusCircle(!showRadiusCircle)}
         showAllStops={showAllStopsOnMap}
         onToggleShowAllStops={() => setShowAllStopsOnMap(!showAllStopsOnMap)}
-        onMapClickCoords={(coords) => setLastClickedCoords(coords)}
-        onOpenDataModal={() => setIsDataModalOpen(true)}
-        onUpdateStopPosition={handleUpdateStopPosition}
-        onResetStopsToDefault={handleResetToDefaultBusStops}
         isDarkMode={isDarkMode}
         onRecenterUser={() => {
           setUserLocation((prev) => ({ ...prev }));
@@ -433,7 +428,6 @@ export default function App() {
         allNearbyStops={nearbyStops}
         onSelectAnotherStop={handleSelectStop}
         onOpenAllStopsModal={() => setIsStopSelectorOpen(true)}
-        onOpenDataModal={() => setIsDataModalOpen(true)}
         isNearby={selectedStop ? nearbyStopIds.has(selectedStop.id) : false}
         totalStopsCount={companyFilteredStops.length}
         selectedCompany={selectedCompany}
@@ -473,26 +467,27 @@ export default function App() {
         onFocusStop={(stop) => {
           handleFocusStop(stop);
         }}
-        onOpenDataModal={() => setIsDataModalOpen(true)}
       />
 
-      {/* 7. Bus Stops & Timetables JSON Data & Position Editor Modal */}
-      <BusStopsDataModal
-        isOpen={isDataModalOpen}
-        onClose={() => setIsDataModalOpen(false)}
-        busStops={busStops}
-        onSaveBusStops={handleSaveBusStops}
-        onResetToDefault={handleResetToDefaultBusStops}
-        lastClickedCoords={lastClickedCoords}
-        onFocusCoordinates={(lat, lng) => {
-          setUserLocation((prev) => ({
-            ...prev,
-            lat,
-            lng,
-            label: '選択したバス停地点',
-          }));
-        }}
-      />
+      {/* 7. Bus Stops & Timetables JSON Data & Position Editor Modal (Temporarily disabled) */}
+      {false && isDataModalOpen && (
+        <BusStopsDataModal
+          isOpen={isDataModalOpen}
+          onClose={() => setIsDataModalOpen(false)}
+          busStops={busStops}
+          onSaveBusStops={handleSaveBusStops}
+          onResetToDefault={handleResetToDefaultBusStops}
+          lastClickedCoords={lastClickedCoords}
+          onFocusCoordinates={(lat, lng) => {
+            setUserLocation((prev) => ({
+              ...prev,
+              lat,
+              lng,
+              label: '選択したバス停地点',
+            }));
+          }}
+        />
+      )}
     </div>
   );
 }

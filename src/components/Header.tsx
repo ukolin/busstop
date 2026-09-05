@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bus, Navigation, MapPin, FileJson, Filter, Sun, Moon } from 'lucide-react';
+import { Bus, Navigation, MapPin, Filter, Sun, Moon } from 'lucide-react';
 import { UserLocation, BusCompanyFilter } from '../types';
 import { SwipeableContainer } from './SwipeableContainer';
 
@@ -174,19 +174,6 @@ export const Header: React.FC<HeaderProps> = ({
               <MapPin className="w-3 h-3 text-[#6B8E61] shrink-0" />
               <span className="truncate">{userLocation.label ? userLocation.label.replace(/（.*）/, '') : '地点'}</span>
             </button>
-
-            {onOpenDataModal && (
-              <button
-                id="header-open-data-modal-btn"
-                type="button"
-                onClick={onOpenDataModal}
-                title="バス停・時刻表データ (JSON) の編集・位置調整"
-                aria-label="バス停・時刻表データの編集"
-                className="p-1.5 text-[#7A7969] dark:text-[#94A3B8] hover:text-[#4A6741] dark:hover:text-[#6B8E61] hover:bg-[#F3F4ED] dark:hover:bg-[#242930] active:bg-[#EAEFE8] rounded-lg transition-colors flex items-center justify-center cursor-pointer"
-              >
-                <FileJson className="w-3.5 h-3.5" />
-              </button>
-            )}
           </div>
         </div>
 
