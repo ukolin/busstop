@@ -155,6 +155,8 @@ export function normalizeDepartureItem(item: any, stopId: string = 'stop', idx: 
       ? 'departed'
       : 'on_time';
 
+  const tripId = item.trip_id || item.tripId || item.trip;
+
   return {
     id: item.id || `dep-${stopId}-${idx}-${cleanScheduledTime.replace(':', '')}`,
     routeNumber,
@@ -169,6 +171,8 @@ export function normalizeDepartureItem(item: any, stopId: string = 'stop', idx: 
     congestion: item.congestion || 'low',
     barrierFree: item.barrierFree ?? true,
     busId: item.busId || `bus-${stopId}-${idx}`,
+    tripId: tripId,
+    trip_id: tripId,
   };
 }
 
@@ -298,6 +302,7 @@ export function expandCompactSchedulesToDepartures(
         if (!cleanTime || !cleanTime.includes(':')) return;
 
         const hh = parseInt(cleanTime.split(':')[0] || '0', 10);
+        const tripId = compact.trip_ids?.[tIdx] || compact.tripIds?.[tIdx] || (compact as any).trips?.[tIdx];
         result.push({
           id: `t-${stopId.replace(/[^a-zA-Z0-9_-]/g, '_')}-${sIdx}-${tIdx}-${cleanTime.replace(':', '')}`,
           routeNumber: compact.route || '路線バス',
@@ -312,6 +317,8 @@ export function expandCompactSchedulesToDepartures(
           congestion: (hh >= 7 && hh <= 9) || (hh >= 17 && hh <= 19) ? 'high' : 'low',
           barrierFree: true,
           busId: `bus-${stopId.replace(/[^a-zA-Z0-9_-]/g, '_')}-${sIdx}-${tIdx + 1}`,
+          tripId: tripId,
+          trip_id: tripId,
         });
       });
     }
@@ -354,27 +361,33 @@ export async function loadCompanyBusStopTimes(company: BusCompany): Promise<Comp
                 compactCache.set(key, merged);
                 normalizedData[key] = merged;
               } else if (items && typeof items === 'object' && Array.isArray(items.timetables)) {
-                // Support format from timetables.json: { name, lat, lon, timetables: [{ time, headsign, serviceId }] }
-                const rawList = items.timetables as Array<{ time?: string; headsign?: string; serviceId?: string }>;
+                // Support format from timetables.json: { name, lat, lon, timetables: [{ time, headsign, serviceId, trip_id, tripId }] }
+                const rawList = items.timetables as Array<{ time?: string; headsign?: string; serviceId?: string; trip_id?: string; tripId?: string }>;
                 if (rawList.length > 0) {
-                  const groups = new Map<string, string[]>();
+                  const groups = new Map<string, Array<{ time: string; tripId?: string }>>();
                   for (const entry of rawList) {
                     if (!entry.time) continue;
                     const cleanTime = entry.time.substring(0, 5);
                     const headsign = entry.headsign || '主要方面';
+                    const tripId = entry.trip_id || entry.tripId;
                     if (!groups.has(headsign)) {
                       groups.set(headsign, []);
                     }
-                    groups.get(headsign)!.push(cleanTime);
+                    groups.get(headsign)!.push({ time: cleanTime, tripId });
                   }
-                  const converted: CompactRouteSchedule[] = Array.from(groups.entries()).map(([headsign, times]) => ({
-                    route: headsign.includes('線') ? headsign : `${headsign}方面`,
-                    destination: headsign.endsWith('行') ? headsign : `${headsign}行`,
-                    via: '主要経由地',
-                    company,
-                    color: company === '広島バス' ? '#dc2626' : '#16a34a',
-                    times: Array.from(new Set(times)).sort(),
-                  }));
+                  const converted: CompactRouteSchedule[] = Array.from(groups.entries()).map(([headsign, entries]) => {
+                    entries.sort((a, b) => a.time.localeCompare(b.time));
+                    return {
+                      route: headsign.includes('線') ? headsign : `${headsign}方面`,
+                      destination: headsign.endsWith('行') ? headsign : `${headsign}行`,
+                      via: '主要経由地',
+                      company,
+                      color: company === '広島バス' ? '#dc2626' : '#16a34a',
+                      times: entries.map((e) => e.time),
+                      tripIds: entries.map((e) => e.tripId || ''),
+                      trip_ids: entries.map((e) => e.tripId || ''),
+                    };
+                  });
                   const existing = compactCache.get(key) || [];
                   const merged = [...existing, ...converted];
                   compactCache.set(key, merged);

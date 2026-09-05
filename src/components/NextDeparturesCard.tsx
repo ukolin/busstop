@@ -20,7 +20,8 @@ import {
   Moon,
   RotateCcw
 } from 'lucide-react';
-import { BusStop, DepartureItem, ActiveBus, BusCompany, BusCompanyFilter } from '../types';
+import { BusStop, DepartureItem, ActiveBus, BusCompany, BusCompanyFilter, RealtimeDelayMap } from '../types';
+import { lookupTripDelay, useRealtimeDelays } from '../data/realtimeDelayService';
 import {
   fetchTimetableForStop,
   getCachedTimetable,
@@ -50,6 +51,7 @@ interface NextDeparturesCardProps {
   totalStopsCount?: number;
   selectedCompany?: BusCompanyFilter;
   onSelectCompany?: (company: BusCompanyFilter) => void;
+  realtimeDelays?: RealtimeDelayMap;
 }
 
 export const NextDeparturesCard: React.FC<NextDeparturesCardProps> = ({
@@ -67,7 +69,12 @@ export const NextDeparturesCard: React.FC<NextDeparturesCardProps> = ({
   totalStopsCount,
   selectedCompany = 'all',
   onSelectCompany,
+  realtimeDelays,
 }) => {
+  // Real-time delay dictionary: use prop if provided, or fallback to internal polling hook
+  const fallbackDelays = useRealtimeDelays(60000);
+  const activeDelays = realtimeDelays || fallbackDelays.delays;
+
   // Start expanded by default within 35vh, but allow collapsing to a compact 52px bar
   const [isExpanded, setIsExpanded] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState<'upcoming' | 'approaching' | 'all_day'>('upcoming');
@@ -268,19 +275,30 @@ export const NextDeparturesCard: React.FC<NextDeparturesCardProps> = ({
   // Current reference minute in Japan Standard Time
   const currentTotalMinutes = timeInfo.totalMinutes;
 
-  // Enhance timetable with live countdowns & future / past statuses
+  // Enhance timetable with live countdowns & future / past statuses & realtime GTFS-RT delays
   const enrichedTimetable = useMemo(() => {
     if (!selectedStop || stopTimetable.length === 0) return [];
 
     return stopTimetable.map((item, idx) => {
       const norm = normalizeDepartureItem(item, selectedStop.id, idx);
+
+      // Real-time GTFS-RT delay lookup by trip_id / tripId or deterministic mapping
+      const delaySec = lookupTripDelay({ ...norm, stopId: selectedStop.id }, activeDelays);
       const scheduledMinutes = parseTimeToMinutes(norm.scheduledTime);
       const diffMinutes = scheduledMinutes - currentTotalMinutes;
       const isPastToday = diffMinutes < -2;
       const nextDayDiffMinutes = isPastToday ? diffMinutes + 1440 : diffMinutes;
 
+      // Real-time tracking applies to upcoming departures today
+      const hasRealtime = !isPastToday && delaySec !== undefined;
+      const delayMinutes = hasRealtime ? Math.floor((delaySec ?? 0) / 60) : (norm.delayMinutes || 0);
+
       return {
         ...norm,
+        delaySeconds: hasRealtime ? delaySec : undefined,
+        delayMinutes,
+        hasRealtime,
+        status: (delayMinutes > 0 ? 'delayed' : norm.status) as DepartureItem['status'],
         scheduledMinutes,
         liveMinutesAway: diffMinutes,
         nextDayDiffMinutes,
@@ -288,7 +306,7 @@ export const NextDeparturesCard: React.FC<NextDeparturesCardProps> = ({
         isTomorrow: isPastToday,
       };
     });
-  }, [selectedStop, stopTimetable, currentTotalMinutes]);
+  }, [selectedStop, stopTimetable, currentTotalMinutes, activeDelays]);
 
   // Filter timetable departures based on filter tab, company, and optional sub-stop platform
   const departures = useMemo(() => {
@@ -495,6 +513,15 @@ export const NextDeparturesCard: React.FC<NextDeparturesCardProps> = ({
                 {simulatedMinutes !== null && <span className="text-[8px] bg-[#D97706] text-white px-0.5 rounded">指定</span>}
               </button>
 
+              {/* GTFS-RT Realtime delay indicator */}
+              <div
+                className="hidden xs:flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-[9px] font-bold bg-[#F3F4ED] dark:bg-[#242930] text-[#4A6741] dark:text-[#6B8E61] border border-[#CAD4C6] dark:border-[#2A2F37]"
+                title="リアルタイム遅延情報(GTFS-RT)を60秒間隔で取得中"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-[#16A34A] animate-pulse" />
+                <span className="leading-none whitespace-nowrap">RT遅延連動</span>
+              </div>
+
 
               {onOpenDataModal && (
                 <button
@@ -548,8 +575,20 @@ export const NextDeparturesCard: React.FC<NextDeparturesCardProps> = ({
                     翌日始発 {nextDeparture.scheduledTime}発
                   </span>
                 ) : (
-                  <span className="text-[#D97706] dark:text-[#FBBF24]">
-                    {nextDeparture.scheduledTime}発 ({formatCountdown(nextDeparture.liveMinutesAway, false, false)})
+                  <span className="text-[#D97706] dark:text-[#FBBF24] flex items-center gap-1">
+                    <span>{nextDeparture.scheduledTime}発</span>
+                    {nextDeparture.hasRealtime ? (
+                      (nextDeparture.delaySeconds ?? 0) >= 60 ? (
+                        <span className="text-[#DC2626] dark:text-[#EF4444] font-bold">
+                          +{Math.floor((nextDeparture.delaySeconds ?? 0) / 60)}分遅れ
+                        </span>
+                      ) : (
+                        <span className="text-[#16A34A] dark:text-[#4ADE80] font-bold">
+                          定刻
+                        </span>
+                      )
+                    ) : null}
+                    <span>({formatCountdown(nextDeparture.liveMinutesAway, false, false)})</span>
                   </span>
                 )}
               </span>
@@ -975,35 +1014,57 @@ export const NextDeparturesCard: React.FC<NextDeparturesCardProps> = ({
                         : 'hover:bg-[#F9F7F2] dark:hover:bg-[#242930]/60'
                     }`}
                   >
-                    {/* Left: Departure Time & Countdown / Tomorrow Status */}
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-[84px] sm:min-w-[104px] shrink-0">
-                      <div className="flex items-baseline gap-0.5">
-                        <span className="text-sm sm:text-base font-black text-[#1E293B] dark:text-[#F1F5F9] tracking-tight leading-none">
-                          {item.scheduledTime}
-                        </span>
-                        <span className="text-[10px] font-black text-[#475569] dark:text-[#94A3B8]">
-                          発
-                        </span>
-                      </div>
+                    {/* Left: Departure Time & Countdown, with Real-time Delay placed underneath */}
+                    {(() => {
+                      const delayMin = Math.floor((item.delaySeconds ?? 0) / 60);
 
-                      <span
-                        className={`text-[9px] sm:text-[9.5px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap text-center ${
-                          isPastToday
-                            ? 'bg-[#E5E0D5] dark:bg-[#2D333B] text-[#7A7969] dark:text-[#94A3B8]'
-                            : isTomorrow
-                            ? isFirstOfTomorrow
-                              ? 'bg-[#E0F2FE] dark:bg-[#0C4A6E]/40 text-[#0369A1] dark:text-[#38BDF8] border border-[#BAE6FD] dark:border-[#0284C7]/40'
-                              : 'bg-[#F0F9FF] dark:bg-[#0C4A6E]/30 text-[#0284c7] dark:text-[#38BDF8] border border-[#BAE6FD] dark:border-[#0284C7]/40'
-                            : isImminent
-                            ? 'bg-[#DC2626] text-white animate-pulse'
-                            : minsAway <= 15
-                            ? 'bg-[#FEF3C7] dark:bg-[#78350F]/40 text-[#92400E] dark:text-[#FDE68A] border border-[#FDE68A] dark:border-[#B45309]'
-                            : 'bg-[#F3F4ED] dark:bg-[#242930] text-[#5B594B] dark:text-[#CBD5E1] border border-[#E8E4D9] dark:border-[#2A2F37]'
-                        }`}
-                      >
-                        {formatCountdown(minsAway, isPastToday, isTomorrow, isFirstOfTomorrow)}
-                      </span>
-                    </div>
+                      return (
+                        <div className="flex flex-col min-w-[76px] sm:min-w-[88px] shrink-0 justify-center">
+                          {/* Top: Departure Time & Countdown badge */}
+                          <div className="flex items-center gap-1.5">
+                            <div className="flex items-baseline gap-0.5">
+                              <span className="text-sm sm:text-base font-black text-[#1E293B] dark:text-[#F1F5F9] tracking-tight leading-none">
+                                {item.scheduledTime}
+                              </span>
+                              <span className="text-[10px] font-black text-[#475569] dark:text-[#94A3B8]">
+                                発
+                              </span>
+                            </div>
+
+                            <span
+                              className={`text-[8.5px] sm:text-[9px] font-bold px-1.5 py-0.2 rounded-full whitespace-nowrap text-center ${
+                                isPastToday
+                                  ? 'bg-[#E5E0D5] dark:bg-[#2D333B] text-[#7A7969] dark:text-[#94A3B8]'
+                                  : isTomorrow
+                                  ? isFirstOfTomorrow
+                                    ? 'bg-[#E0F2FE] dark:bg-[#0C4A6E]/40 text-[#0369A1] dark:text-[#38BDF8] border border-[#BAE6FD] dark:border-[#0284C7]/40'
+                                    : 'bg-[#F0F9FF] dark:bg-[#0C4A6E]/30 text-[#0284c7] dark:text-[#38BDF8] border border-[#BAE6FD] dark:border-[#0284C7]/40'
+                                  : isImminent
+                                  ? 'bg-[#DC2626] text-white animate-pulse'
+                                  : minsAway <= 15
+                                  ? 'bg-[#FEF3C7] dark:bg-[#78350F]/40 text-[#92400E] dark:text-[#FDE68A] border border-[#FDE68A] dark:border-[#B45309]'
+                                  : 'bg-[#F3F4ED] dark:bg-[#242930] text-[#5B594B] dark:text-[#CBD5E1] border border-[#E8E4D9] dark:border-[#2A2F37]'
+                              }`}
+                            >
+                              {formatCountdown(minsAway, isPastToday, isTomorrow, isFirstOfTomorrow)}
+                            </span>
+                          </div>
+
+                          {/* Delay time located UNDER the scheduled departure time, without parentheses */}
+                          {item.hasRealtime ? (
+                            (item.delaySeconds ?? 0) >= 60 ? (
+                              <span className="text-[10px] sm:text-[10.5px] font-bold text-[#DC2626] dark:text-[#EF4444] whitespace-nowrap leading-tight mt-0.5">
+                                +{delayMin}分遅れ
+                              </span>
+                            ) : (
+                              <span className="text-[9.5px] sm:text-[10px] font-bold text-[#16A34A] dark:text-[#4ADE80] whitespace-nowrap leading-tight mt-0.5">
+                                定刻
+                              </span>
+                            )
+                          ) : null}
+                        </div>
+                      );
+                    })()}
 
                     {/* Middle: Route & Destination & Company & Via */}
                     <div className="flex-1 min-w-0 flex flex-col justify-center">
@@ -1023,15 +1084,6 @@ export const NextDeparturesCard: React.FC<NextDeparturesCardProps> = ({
                         <span className="text-xs sm:text-[13px] font-bold text-[#2D3436] dark:text-[#F1F5F9] truncate leading-tight">
                           {item.destination}
                         </span>
-                        {item.delayMinutes > 0 ? (
-                          <span className="text-[8.5px] sm:text-[9px] font-bold text-[#D97706] dark:text-[#FBBF24] bg-[#FFFBEB] dark:bg-[#78350F]/30 px-1 py-0.2 rounded border border-[#FDE68A] dark:border-[#B45309] shrink-0">
-                            +{item.delayMinutes}分
-                          </span>
-                        ) : (
-                          <span className="text-[8.5px] sm:text-[9px] font-semibold text-[#4A6741] dark:text-[#6B8E61] bg-[#F3F4ED] dark:bg-[#242930] px-1 py-0.2 rounded border border-[#D5DBD0] dark:border-[#2A2F37] shrink-0 hidden xs:inline">
-                            定時
-                          </span>
-                        )}
                       </div>
                       {item.via && (
                         <div className="text-[9px] sm:text-[10px] text-[#7A7969] dark:text-[#94A3B8] truncate mt-0.5 leading-tight">

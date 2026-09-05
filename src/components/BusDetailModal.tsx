@@ -1,21 +1,27 @@
 import React from 'react';
 import { X, Bus, Clock, MapPin, Gauge, Users, CheckCircle2, AlertTriangle, ArrowRight, Crosshair } from 'lucide-react';
-import { ActiveBus } from '../types';
+import { ActiveBus, RealtimeDelayMap } from '../types';
+import { lookupTripDelay } from '../data/realtimeDelayService';
 
 interface BusDetailModalProps {
   bus: ActiveBus | null;
   onClose: () => void;
   onTrackBus: (bus: ActiveBus) => void;
+  realtimeDelays?: RealtimeDelayMap;
 }
 
 export const BusDetailModal: React.FC<BusDetailModalProps> = ({
   bus,
   onClose,
   onTrackBus,
+  realtimeDelays,
 }) => {
   if (!bus) return null;
 
-  const isDelayed = bus.delayMinutes > 0;
+  const tripDelaySec = lookupTripDelay(bus, realtimeDelays);
+  const hasRealtime = tripDelaySec !== undefined;
+  const effectiveDelayMinutes = hasRealtime ? Math.floor(tripDelaySec / 60) : bus.delayMinutes;
+  const isDelayed = effectiveDelayMinutes > 0;
 
   return (
     <div
@@ -46,9 +52,15 @@ export const BusDetailModal: React.FC<BusDetailModalProps> = ({
               </div>
             </div>
             <div className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black shrink-0 ${
-              isDelayed ? 'bg-[#D97706] text-white' : 'bg-[#4A6741] text-white'
+              isDelayed ? 'bg-[#DC2626] text-white' : 'bg-[#4A6741] text-white'
             }`}>
-              {isDelayed ? `+${bus.delayMinutes}分` : '定時'}
+              {hasRealtime
+                ? (tripDelaySec ?? 0) >= 60
+                  ? `+${effectiveDelayMinutes}分遅れ`
+                  : '定刻'
+                : isDelayed
+                ? `+${bus.delayMinutes}分`
+                : '定時'}
             </div>
           </div>
 
@@ -111,10 +123,22 @@ export const BusDetailModal: React.FC<BusDetailModalProps> = ({
           }`}>
             <div className="flex items-center gap-1.5 truncate">
               {isDelayed ? <AlertTriangle className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" /> : <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />}
-              <span className="font-semibold truncate">{bus.statusText}</span>
+              <span className="font-semibold truncate">
+                {hasRealtime
+                  ? (tripDelaySec ?? 0) >= 60
+                    ? `GTFS-RT: +${effectiveDelayMinutes}分遅れで運行中`
+                    : 'GTFS-RT: 定刻運行中'
+                  : bus.statusText}
+              </span>
             </div>
             <span className="text-[9.5px] sm:text-[10px] shrink-0 font-bold whitespace-nowrap">
-              {isDelayed ? `+${bus.delayMinutes}分` : '定刻'}
+              {hasRealtime
+                ? (tripDelaySec ?? 0) >= 60
+                  ? `+${effectiveDelayMinutes}分遅れ`
+                  : '定刻'
+                : isDelayed
+                ? `+${bus.delayMinutes}分`
+                : '定刻'}
             </span>
           </div>
 

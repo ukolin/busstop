@@ -30,9 +30,13 @@ export interface CompactRouteSchedule {
   company: BusCompany;
   color: string;
   times: string[];
+  tripIds?: string[];
+  trip_ids?: string[];
 }
 
 export type CompactBusStopTimes = Record<string, CompactRouteSchedule[]>;
+
+export type RealtimeDelayMap = Record<string, number>;
 
 export interface DepartureItem {
   id: string;
@@ -48,6 +52,10 @@ export interface DepartureItem {
   congestion: 'low' | 'medium' | 'high';
   barrierFree: boolean;
   busId?: string;
+  tripId?: string;
+  trip_id?: string;
+  delaySeconds?: number;
+  hasRealtime?: boolean;
 }
 
 export interface ActiveBus {

@@ -16,12 +16,16 @@ import { LocationPresetModal } from './components/LocationPresetModal';
 import { StopSelectorModal } from './components/StopSelectorModal';
 import { BusStopsDataModal } from './components/BusStopsDataModal';
 import { loadAllBusStopTimes } from './data/timetableService';
+import { useRealtimeDelays } from './data/realtimeDelayService';
 
 export default function App() {
   // Preload full busStopTimes.json on application startup
   useEffect(() => {
     loadAllBusStopTimes();
   }, []);
+
+  // Poll GTFS-RT delay API on mount and every 60 seconds
+  const { delays: realtimeDelays } = useRealtimeDelays(60000);
 
   // 1. User Location State
   const [userLocation, setUserLocation] = useState<UserLocation>({
@@ -434,6 +438,7 @@ export default function App() {
         totalStopsCount={companyFilteredStops.length}
         selectedCompany={selectedCompany}
         onSelectCompany={setSelectedCompany}
+        realtimeDelays={realtimeDelays}
       />
 
       {/* 4. Tapped Bus Detail Modal: 『行先・遅延情報』 */}
@@ -441,6 +446,7 @@ export default function App() {
         bus={selectedBus}
         onClose={() => setSelectedBus(null)}
         onTrackBus={handleTrackBus}
+        realtimeDelays={realtimeDelays}
       />
 
       {/* 5. Hiroshima Location Preset Modal */}
