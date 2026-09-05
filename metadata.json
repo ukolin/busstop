@@ -1,5 +1,5 @@
 {
-  "name": "広島バスロケーションv2",
+  "name": "Remix 広島バスロケーションv3",
   "description": "広島市周辺の最寄りバス停の発車時刻一覧を確認できるバスロケWebアプリ。",
   "requestFramePermissions": [
     "geolocation"
